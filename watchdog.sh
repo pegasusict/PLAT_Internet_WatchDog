@@ -27,9 +27,9 @@ init() {
 	declare -gr COPYRIGHT="(c)2017-$(date +"%Y")"
 	declare -gr VERSION_MAJOR=0
 	declare -gr VERSION_MINOR=0
-	declare -gr VERSION_PATCH=5
+	declare -gr VERSION_PATCH=20
 	declare -gr VERSION_STATE="PRE-ALPHA"
-	declare -gr VERSION_BUILD=20180430
+	declare -gr VERSION_BUILD=20180501
 	declare -gr LICENSE="MIT"
 	###############################################################################
 	declare -gr PROGRAM="$PROGRAM_SUITE - $SCRIPT_TITLE"
@@ -41,7 +41,6 @@ init() {
 	define_colors
 	echo INIT end
 }
-
 get_screen_size() { ### gets terminal size and sets global vars
 					#+  SCREEN_HEIGHT and SCREEN_WIDTH
 	echo getting screen size
@@ -61,7 +60,6 @@ create_constants() {
 	declare -gr LOG_FILE="$LOG_DIR/$SCRIPT_$START_TIME$LOG_EXT"
 	echo constants created
 }
-
 get_args() {
 	echo parsing args
 	getopt --test > /dev/null
@@ -342,8 +340,12 @@ get_screen_size
 create_constants
 
 get_args  "$@"
-### verified up to here``	
-if [ -z ${TEST_SERVER+x} ] ; then declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER" ; fi
+### verified up to here --------------------------------------------------
+if [ -z ${TEST_SERVER+x} ]
+then
+	declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
+	echo test server is set to default
+fi
 ### end of preperations ###
 
 watch_dog $TEST_SERVER
