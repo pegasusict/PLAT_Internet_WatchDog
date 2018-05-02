@@ -1,11 +1,11 @@
-#!/bin/bash -x
+#!/bin/bash
 ############################################################################
 # Pegasus' Linux Administration Tools #					 Internet Watchdog #
 # (C)2017-2018 Mattijs Snepvangers	  #				 pegasus.ict@gmail.com #
 # License: GPL v3					  # Please keep my name in the credits #
 ############################################################################
 START_TIME=$(date +"%Y-%m-%d_%H.%M.%S.%3N")
-	declare -g VERBOSITY=5
+declare -g VERBOSITY=5
 
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
@@ -16,7 +16,7 @@ echo "$START_TIME ## Starting Watchdog Process #######################"
 
 ### INIT #############################
 init() {
-	echo INIT start
+	dbg_line "INIT start"
 	################### PROGRAM INFO ##############################################
 	declare -gr PROGRAM_SUITE="Pegasus' Linux Administration Tools"
 	declare -gr SCRIPT="${0##*/}"
@@ -27,9 +27,9 @@ init() {
 	declare -gr COPYRIGHT="(c)2017-$(date +"%Y")"
 	declare -gr VERSION_MAJOR=0
 	declare -gr VERSION_MINOR=0
-	declare -gr VERSION_PATCH=20
+	declare -gr VERSION_PATCH=42
 	declare -gr VERSION_STATE="PRE-ALPHA"
-	declare -gr VERSION_BUILD=20180501
+	declare -gr VERSION_BUILD=20180502
 	declare -gr LICENSE="MIT"
 	###############################################################################
 	declare -gr PROGRAM="$PROGRAM_SUITE - $SCRIPT_TITLE"
@@ -38,30 +38,25 @@ init() {
 	declare -gr DEFAULT_TEST_SERVER="www.google.com"
 
 	### initializing terminal colors
-	define_colors
-	echo INIT end
+	dbg_line "INIT end"
 }
 get_screen_size() { ### gets terminal size and sets global vars
 					#+  SCREEN_HEIGHT and SCREEN_WIDTH
-	echo getting screen size
-	#shopt -s checkwinsize
-	#(:)
-	#dbg_line "Found $LINES lines and $COLUMNS columns."
+	dbg_line "getting screen size"
 	declare -g SCREEN_HEIGHT=$(tput lines) #${ $LINES:-25 }
 	declare -g SCREEN_WIDTH=$(tput cols) #${ $COLUMNS:-80 }
 	dbg_line "Found $SCREEN_HEIGHT lines and $SCREEN_WIDTH columns."
-	echo "Found $SCREEN_HEIGHT lines and $SCREEN_WIDTH columns."
 }
 #####
-create_constants() {
-	echo creating constants
+create_constants() { ### defines constants
+	dbg_line "creating constants"
 	declare -gr LOG_EXT=".log"
 	declare -gr LOG_DIR="/var/log/plat/"
-	declare -gr LOG_FILE="$LOG_DIR/$SCRIPT_$START_TIME$LOG_EXT"
-	echo constants created
+	declare -gr LOG_FILE="$LOG_DIR$SCRIPT_$START_TIME$LOG_EXT"
+	dbg_line "constants created"
 }
-get_args() {
-	echo parsing args
+get_args() { ### parses commandline arguments
+	dbg_line "parsing args"
 	getopt --test > /dev/null
 	if [[ $? -ne 4 ]]
 	then
@@ -77,30 +72,29 @@ get_args() {
 	eval set -- "$PARSED"
 	while true; do
 		case "$1" in
-			-h|--help			) echo help asked			;	usage						;	shift	;;
-			-v|--verbosity		) echo set verbosity to $2	;	set_verbosity $2			;	shift 2	;;
-			-s|--server			) echo set testserver to $2	;	declare -gr TEST_SERVER=$2	;	shift 2	;;
+			-h|--help			) dbg_line "help asked"				;	usage						;	shift	;;
+			-v|--verbosity		) dbg_line "set verbosity to $2"	;	set_verbosity $2			;	shift 2	;;
+			-s|--server			) dbg_line "set testserver to $2"	;	declare -gr TEST_SERVER=$2	;	shift 2	;;
 			--					) shift; break ;;
 			*					) break ;;
 		esac
 	done
-	echo done parsing args
+	dbg_line "done parsing args"
 }
 set_verbosity() { ### Set verbosity level
-	echo setting verbosity to $1
+	dbg_line "setting verbosity to $1"
 	case $1 in
-		1	)	declare -gr VERBOSITY=1; echo Verbosity is set to 1;;	### Be vewy, vewy quiet... Will only show Critical errors which result in an untimely exiting of the script
-		2	)	declare -gr VERBOSITY=2; echo Verbosity is set to 2;;	# Will show errors that don't endanger the basic functioning of the program
-		3	)	declare -gr VERBOSITY=3; echo Verbosity is set to 3;;	# Will show warnings
-		4	)	declare -gr VERBOSITY=4; echo Verbosity is set to 4;;	# Let me know what youre doing, every step of the way
-		5	)	declare -gr VERBOSITY=5; echo Verbosity is set to 5;;	# I want it all, your thoughts and dreams too!!!
+		1	)	declare -gr VERBOSITY=1; info_line "Verbosity is set to 1";;	### Be vewy, vewy quiet... Will only show Critical errors which result in an untimely exiting of the script
+		2	)	declare -gr VERBOSITY=2; info_line "Verbosity is set to 2";;	# Will show errors that don't endanger the basic functioning of the program
+		3	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to 3";;	# Will show warnings
+		4	)	declare -gr VERBOSITY=4; info_line "Verbosity is set to 4";;	# Let me know what youre doing, every step of the way
+		5	)	declare -gr VERBOSITY=5; info_line "Verbosity is set to 5";;	# I want it all, your thoughts and dreams too!!!
 
-		*	)	declare -gr VERBOSITY=3; echo Verbosity is set to default 3;;	## DEFAULT
+		*	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to default 3";;	## DEFAULT
 	esac
 }
-#-----------------------------------------------------------------------------------------------
 ### User Interface & LOGGING ###################################################
-usage() {
+usage() { ### returns usage information
 	version
 	cat <<-EOT
 		USAGE: sudo bash $SCRIPT -h
@@ -126,7 +120,7 @@ version() { ### returns version information
 ###
 crit_line() { ### CRITICAL MESSAGES
 	local _MESSAGE="$1"
-	logline 1 "$_MESSAGE"
+	log_line 1 "$_MESSAGE"
 }
 err_line() { ### ERROR MESSAGES
 	local _MESSAGE="$1"
@@ -162,6 +156,7 @@ log_line() {	# creates a nice logline and decides what to print on screen and
 	local _MESSAGE=$2
 	local _LABEL=""
 	local _LOG_LINE=""
+	local _SCREEN_LINE=""
 	local _LOG_LINE_FILLER=""
 	case $_IMPORTANCE in
 		1	)	_LABEL="CRITICAL"	;;
@@ -171,24 +166,24 @@ log_line() {	# creates a nice logline and decides what to print on screen and
 		5	)	_LABEL="DEBUG"		;;
 	esac
 	_LOG_LINE="$(get_timestamp) # $_LABEL: "
-	for (( i=$(_log_line_length) ; i<SCREEN_WIDTH ; i++ ))
+	local IMAX=$SCREEN_WIDTH-$(_log_line_length)
+	for (( i=1 ; i<IMAX ; i++ ))
 	do
 		_LOG_LINE_FILLER+="#"
 	done
 	_MESSAGE+=" $_LOG_LINE_FILLER"
-	case $_IMPORTANCE in
-	1	)	_LOGLINE=$(crit_colors "$_LOG_LINE" "$_MESSAGE")	;;
-	2	)	_LOGLINE=$(err_colors "$_LOG_LINE" "$_MESSAGE")		;;
-	3	)	_LOGLINE=$(warn_colors "$_LOG_LINE" "$_MESSAGE")	;;
-	4	)	_LOGLINE=$(info_colors "$_LOG_LINE" "$_MESSAGE")	;;
-	5	)	_LOGLINE=$(dbg_colors "$_LOG_LINE" "$_MESSAGE")		;;
-	esac
 	if (( "$_IMPORTANCE" <= "$VERBOSITY" ))
 	then
-		echo -e "$_LOGLINE" | tee -a $LOG_FILE
-	else
-		echo -e "$_LOGLINE" >> $LOG_FILE
+		case $_IMPORTANCE in
+			1	)	crit_colors "$_LOG_LINE" "$_MESSAGE"	;;
+			2	)	err_colors "$_LOG_LINE" "$_MESSAGE"		;;
+			3	)	warn_colors "$_LOG_LINE" "$_MESSAGE"	;;
+			4	)	info_colors "$_LOG_LINE" "$_MESSAGE"	;;
+			5	)	dbg_colors "$_LOG_LINE" "$_MESSAGE"		;;
+		esac
 	fi
+	_LOG_LINE+=$_MESSAGE
+	echo "$_LOG_LINE" > "$LOG_FILE"
 }
 define_colors() {
 	# Reset
@@ -267,32 +262,40 @@ define_colors() {
 crit_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
-	local _OUTPUT="$BIYellow$On_IRed$_LABEL:$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
-	echo -e $_OUPUT
+	local _OUTPUT="$BIYellow$On_IRed$_LABEL$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
+	echo -e "$_OUPUT"
 }
 err_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
-	local _OUTPUT="$BRed$On_Black$_LABEL:$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
-	echo -e $_OUPUT
+	local _OUTPUT="$BRed$On_Black$_LABEL$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
+	echo -e "$_OUPUT"
 }
 warn_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
-	local _OUTPUT="$Red$On_White$_LABEL:$Color_Off $Red$On_White$_MESSAGE$Color_Off"
-	echo -e $_OUPUT
+	local _OUTPUT="$Red$On_White$_LABEL$Color_Off $Red$On_White$_MESSAGE$Color_Off"
+	echo -e "$_OUPUT"
 }
 info_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
-	local _OUTPUT="$Black$On_White$_LABEL:$Color_Off $Black$On_White$_MESSAGE$Color_Off"
-	echo -e $_OUPUT
+	local _OUTPUT="$Black$On_White$_LABEL$Color_Off $Black$On_White$_MESSAGE$Color_Off"
+	echo -e "$_OUPUT"
 }
 dbg_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
-	local _OUTPUT="$Green$On_White$_LABEL:$Color_Off $Green$On_White$_MESSAGE$Color_Off"
-	echo -e $_OUPUT
+	local _OUTPUT="$Black$On_White$_LABEL$Color_Off $Black$On_Green$_MESSAGE$Color_Off"
+	echo -e "$_OUTPUT"
+}
+
+create_file() { ### Creates file if it doesn't exist
+	local _TARGET_FILE="$1"
+	if [ ! -f "$_TARGET_FILE" ]
+	then
+		touch "$_TARGET_FILE"
+	fi
 }
 ### (Inter)Net(work) ###########################################################
 cycle_network() {
@@ -300,32 +303,36 @@ cycle_network() {
 	ifdown --exclude=lo -a && ifup --exclude=lo -a 
 }
 test_DNS() {
-	dbg_line "testing DNS"
+	dbg_line "test_DNS: testing DNS"
 	local _SERVER="$1"
 	# Checking for the resolved IP address from the end of the command output. Refer
 	# the normal command output of nslookup to understand why.
-	resolvedIP=$(nslookup "$_SERVER" | awk -F':' '/^Address: / { matched = 1 } matched { print $2}' | xargs)
+	local _RESOLVED_IP=$(nslookup "$_SERVER" | awk -F':' '/^Address: / { matched = 1 } matched { print $2}' | xargs)
 	# Deciding the lookup status by checking the variable has a valid IP string
-	if [[ -z "$resolvedIP" ]]
+	dbg_line "test_DNS: nslookup $_SERVER yielded $_RESOLVED_IP"
+	if [[ -z "$_RESOLVED_IP" ]]
 	then
-		echo "false"
-		dbg_line "DNS DOWN"
+		declare -g DNS_STATE="false"
+		dbg_line "test_DNS: DNS DOWN"
 	else
-		echo "true"
-		dbg_line "DNS OK"
+		declare -g DNS_STATE="true"
+		dbg_line "test_DNS: DNS OK"
 	fi
 }
 watch_dog() {
 	local _TEST_SERVER="$1"
+	dbg_line "watch_dog: commencing DNS testing"
 	while true
 	do
-		if [ $(test_DNS $_TEST_SERVER) == false ]
+		test_DNS "$_TEST_SERVER"
+		if [ "$DNS_STATE" == "false" ]
 		then
-			err_line "DNS Down, resetting network"
+			err_line "watch_dog: DNS Down, resetting network"
 			cycle_network
 		else
-			dbg_line "DNS works fine"
+			dbg_line "watch_dog: DNS works fine"
 		fi
+		dbg_line "watch_dog: sleeping for 1 minute"
 		sleep 60
 	done
 }
@@ -335,16 +342,19 @@ get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 }
 
 ### start preperations ###
-init
+define_colors
 get_screen_size
+
+init
 create_constants
+create_file "$LOG_FILE"
 
 get_args  "$@"
 ### verified up to here --------------------------------------------------
 if [ -z ${TEST_SERVER+x} ]
 then
 	declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
-	echo test server is set to default
+	info_line "test server is set to default"
 fi
 ### end of preperations ###
 
