@@ -299,7 +299,7 @@ create_file() { ### Creates file if it doesn't exist
 }
 ### (Inter)Net(work) ###########################################################
 cycle_network() {
-	dbg_line "resetting network"
+	dbg_line "cycle_network: resetting network"
 	ifdown --exclude=lo -a && ifup --exclude=lo -a 
 }
 test_DNS() {
