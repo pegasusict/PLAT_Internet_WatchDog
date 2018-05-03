@@ -6,7 +6,23 @@
 ############################################################################
 START_TIME=$(date +"%Y-%m-%d_%H.%M.%S.%3N")
 declare -g VERBOSITY=5
-
+declare -g LOG_FILE_CREATED=false
+tolog() {
+	local _LOG_ENTRY="$1"
+	if [ $LOG_FILE_CREATED != true]
+	then
+		if [ -z ${LOG_BUFFER+x} ] ; then declare -g LOG_BUFFER="" ; fi
+		echo $_LOG_ENTRY >> $LOG_BUFFER
+	else
+		if [ -z ${LOG_BUFFER+x} ] ; then declare -g LOG_BUFFER="" ; fi
+		if var_exists $_LOG_BUFFER
+		then
+			echo $_LOG_BUFFER >> "$LOG_FILE"
+			unset $_LOG_BUFFER
+			echo $_LOG_ENTRY >> "$LOG_FILE"
+		fi
+	fi
+}
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
@@ -25,11 +41,11 @@ init() {
 	declare -gr MAINTAINER="Mattijs Snepvangers"
 	declare -gr MAINTAINER_EMAIL="pegasus.ict@gmail.com"
 	declare -gr COPYRIGHT="(c)2017-$(date +"%Y")"
-	declare -gr VERSION_MAJOR=0
-	declare -gr VERSION_MINOR=1
+	declare -gr VERSION_MAJOR=1
+	declare -gr VERSION_MINOR=0
 	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="ALPHA"
-	declare -gr VERSION_BUILD=20180502
+	declare -gr VERSION_STATE="RC"
+	declare -gr VERSION_BUILD=20180503
 	declare -gr LICENSE="MIT"
 	###############################################################################
 	declare -gr PROGRAM="$PROGRAM_SUITE - $SCRIPT_TITLE"
@@ -38,6 +54,8 @@ init() {
 	declare -gr DEFAULT_TEST_SERVER="www.google.com"
 
 	### initializing terminal colors
+	create_constants
+	create_logfile
 	dbg_line "INIT end"
 }
 get_screen_size() { ### gets terminal size and sets global vars
@@ -63,8 +81,8 @@ get_args() { ### parses commandline arguments
 		err_line "I’m sorry, \"getopt --test\" failed in this environment."
 		exit 1
 	fi
-	OPTIONS="hv:s:"
-	LONG_OPTIONS="help,verbosity:,server:"
+	OPTIONS="hv:s:i"
+	LONG_OPTIONS="help,verbosity:,server:,install"
 	PARSED=$(getopt -o $OPTIONS --long $LONG_OPTIONS -n "$0" -- "$@")
 	if [ $? -ne 0 ]
 		then usage
@@ -72,11 +90,12 @@ get_args() { ### parses commandline arguments
 	eval set -- "$PARSED"
 	while true; do
 		case "$1" in
-			-h|--help			) dbg_line "help asked"				;	usage						;	shift	;;
-			-v|--verbosity		) dbg_line "set verbosity to $2"	;	set_verbosity $2			;	shift 2	;;
-			-s|--server			) dbg_line "set testserver to $2"	;	declare -gr TEST_SERVER=$2	;	shift 2	;;
-			--					) shift; break ;;
-			*					) break ;;
+			-i|--install		)	dbg_line "installation requested"	;	insert_into_initd			;	shift	;;
+			-h|--help			)	dbg_line "help asked"				;	usage						;	shift	;;
+			-v|--verbosity		)	dbg_line "set verbosity to $2"		;	set_verbosity $2			;	shift 2	;;
+			-s|--server			)	dbg_line "set testserver to $2"		;	declare -gr TEST_SERVER=$2	;	shift 2	;;
+			--					)	shift; break ;;
+			*					)	break ;;
 		esac
 	done
 	dbg_line "done parsing args"
@@ -98,8 +117,8 @@ usage() { ### returns usage information
 	version
 	cat <<-EOT
 		USAGE: sudo bash $SCRIPT -h
-		        or
-		       sudo bash $SCRIPT [ -v INT ] [ -s <uri> ]
+				or
+			   sudo bash $SCRIPT [ -v INT ] [ -s <uri> ]
 
 		OPTIONS
 
@@ -183,7 +202,7 @@ log_line() {	# creates a nice logline and decides what to print on screen and
 		esac
 	fi
 	_LOG_LINE+=$_MESSAGE
-	echo "$_LOG_LINE" > "$LOG_FILE"
+	echo "$_LOG_LINE" >> tolog
 }
 define_colors() {
 	# Reset
@@ -289,7 +308,10 @@ dbg_colors() {
 	local _OUTPUT="$Black$On_White$_LABEL$Color_Off $Black$On_Green$_MESSAGE$Color_Off"
 	echo -e "$_OUTPUT"
 }
-
+create_logfile() {
+    create_file $LOG_FILE
+    declare -gr LOG_FILE_CREATED=true
+}
 create_file() { ### Creates file if it doesn't exist
 	local _TARGET_FILE="$1"
 	if [ ! -f "$_TARGET_FILE" ]
@@ -299,7 +321,7 @@ create_file() { ### Creates file if it doesn't exist
 }
 ### (Inter)Net(work) ###########################################################
 cycle_network() {
-	dbg_line "resetting network"
+	dbg_line "cycle_network: resetting network"
 	ifdown --exclude=lo -a && ifup --exclude=lo -a 
 }
 test_DNS() {
@@ -341,14 +363,21 @@ get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 	echo $(date +"%Y-%m-%d_%H.%M.%S.%3N")
 }
 
+insert_into_initd() {
+	#copy to /etc/init.d/
+	local _SRC_FILE="$SCRIPT_DIR/$SCRIPT"
+	local _TARGET="/etc/init.d/$SCRIPT"
+	cp "$_SRC_FILE" "$_TARGET"
+	# set rights and ownership
+	chmod a+x "$_TARGET"
+	chown root "$_TARGET"
+	update-rc.d "$SCRIPT"
+}
 ### start preperations ###
 define_colors
 get_screen_size
 
 init
-create_constants
-create_file "$LOG_FILE"
-
 get_args  "$@"
 ### verified up to here --------------------------------------------------
 if [ -z ${TEST_SERVER+x} ]
