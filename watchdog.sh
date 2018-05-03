@@ -36,7 +36,7 @@ init() {
 	################### PROGRAM INFO ##############################################
 	declare -gr PROGRAM_SUITE="Pegasus' Linux Administration Tools"
 	declare -gr SCRIPT="${0##*/}"
-	declare -gr SCRIPT_DIR="$(pwd -P)"
+	declare -gr SCRIPT_DIR="${0%/*}"
 	declare -gr SCRIPT_TITLE="Internet Watchdog"
 	declare -gr MAINTAINER="Mattijs Snepvangers"
 	declare -gr MAINTAINER_EMAIL="pegasus.ict@gmail.com"
@@ -44,7 +44,7 @@ init() {
 	declare -gr VERSION_MAJOR=1
 	declare -gr VERSION_MINOR=0
 	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="RC-2"
+	declare -gr VERSION_STATE="RC"
 	declare -gr VERSION_BUILD=20180503
 	declare -gr LICENSE="MIT"
 	###############################################################################
@@ -90,7 +90,7 @@ get_args() { ### parses commandline arguments
 	eval set -- "$PARSED"
 	while true; do
 		case "$1" in
-			-i|--install		)	dbg_line "installation requested"	;	declare -gr DO_INSTALL=true	;	shift	;;
+			-i|--install		)	dbg_line "installation requested"	;	insert_into_initd			;	shift	;;
 			-h|--help			)	dbg_line "help asked"				;	usage						;	shift	;;
 			-v|--verbosity		)	dbg_line "set verbosity to $2"		;	set_verbosity $2			;	shift 2	;;
 			-s|--server			)	dbg_line "set testserver to $2"		;	declare -gr TEST_SERVER=$2	;	shift 2	;;
@@ -379,16 +379,12 @@ get_screen_size
 
 init
 get_args  "$@"
-if [ "$DO_INSTALL"==true ]
+### verified up to here --------------------------------------------------
+if [ -z ${TEST_SERVER+x} ]
 then
-	info_line "starting the installation of $SCRIPT_TITLE"
-	insert_into_initd
-else
-	if [ -z ${TEST_SERVER+x} ]
-	then
-		declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
-		info_line "test server is set to default"
-	fi
-
-	watch_dog $TEST_SERVER
+	declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
+	info_line "test server is set to default"
 fi
+### end of preperations ###
+
+watch_dog $TEST_SERVER
