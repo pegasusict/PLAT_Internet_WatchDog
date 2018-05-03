@@ -41,10 +41,10 @@ init() {
 	declare -gr MAINTAINER="Mattijs Snepvangers"
 	declare -gr MAINTAINER_EMAIL="pegasus.ict@gmail.com"
 	declare -gr COPYRIGHT="(c)2017-$(date +"%Y")"
-	declare -gr VERSION_MAJOR=0
-	declare -gr VERSION_MINOR=2
+	declare -gr VERSION_MAJOR=1
+	declare -gr VERSION_MINOR=0
 	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="BETA"
+	declare -gr VERSION_STATE="RC"
 	declare -gr VERSION_BUILD=20180503
 	declare -gr LICENSE="MIT"
 	###############################################################################
@@ -81,8 +81,8 @@ get_args() { ### parses commandline arguments
 		err_line "I’m sorry, \"getopt --test\" failed in this environment."
 		exit 1
 	fi
-	OPTIONS="hv:s:"
-	LONG_OPTIONS="help,verbosity:,server:"
+	OPTIONS="hv:s:i"
+	LONG_OPTIONS="help,verbosity:,server:,install"
 	PARSED=$(getopt -o $OPTIONS --long $LONG_OPTIONS -n "$0" -- "$@")
 	if [ $? -ne 0 ]
 		then usage
@@ -90,11 +90,12 @@ get_args() { ### parses commandline arguments
 	eval set -- "$PARSED"
 	while true; do
 		case "$1" in
-			-h|--help			) dbg_line "help asked"				;	usage						;	shift	;;
-			-v|--verbosity		) dbg_line "set verbosity to $2"	;	set_verbosity $2			;	shift 2	;;
-			-s|--server			) dbg_line "set testserver to $2"	;	declare -gr TEST_SERVER=$2	;	shift 2	;;
-			--					) shift; break ;;
-			*					) break ;;
+			-i|--install		)	dbg_line "installation requested"	;	insert_into_initd			;	shift	;;
+			-h|--help			)	dbg_line "help asked"				;	usage						;	shift	;;
+			-v|--verbosity		)	dbg_line "set verbosity to $2"		;	set_verbosity $2			;	shift 2	;;
+			-s|--server			)	dbg_line "set testserver to $2"		;	declare -gr TEST_SERVER=$2	;	shift 2	;;
+			--					)	shift; break ;;
+			*					)	break ;;
 		esac
 	done
 	dbg_line "done parsing args"
@@ -364,11 +365,13 @@ get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 
 insert_into_initd() {
 	#copy to /etc/init.d/
-	cp "$SCRIPT_DIR/$SCRIPT" /etc/init.d/
+	local _SRC_FILE="$SCRIPT_DIR/$SCRIPT"
+	local _TARGET="/etc/init.d/$SCRIPT"
+	cp "$_SRC_FILE" "$_TARGET"
 	# set rights and ownership
-	chmod a+x "/etc/init.d/$SCRIPT"
-	chown root "/etc/init.d/$SCRIPT"
-	update-rc.d $SCRIPT
+	chmod a+x "$_TARGET"
+	chown root "$_TARGET"
+	update-rc.d "$SCRIPT"
 }
 ### start preperations ###
 define_colors
