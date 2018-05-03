@@ -362,6 +362,14 @@ get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 	echo $(date +"%Y-%m-%d_%H.%M.%S.%3N")
 }
 
+insert_into_initd() {
+	#copy to /etc/init.d/
+	cp "$SCRIPT_DIR/$SCRIPT" /etc/init.d/
+	# set rights and ownership
+	chmod a+x "/etc/init.d/$SCRIPT"
+	chown root "/etc/init.d/$SCRIPT"
+	update-rc.d $SCRIPT
+}
 ### start preperations ###
 define_colors
 get_screen_size
