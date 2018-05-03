@@ -2,41 +2,45 @@
 ############################################################################
 # Pegasus' Linux Administration Tools #					 Internet Watchdog #
 # (C)2017-2018 Mattijs Snepvangers	  #				 pegasus.ict@gmail.com #
-# License: GPL v3					  # Please keep my name in the credits #
+# License: MIT						  # Please keep my name in the credits #
 ############################################################################
 START_TIME=$(date +"%Y-%m-%d_%H.%M.%S.%3N")
-declare -g VERBOSITY=5
+declare -g VERBOSITY=3
 declare -g LOG_FILE_CREATED=false
+declare -g DO_INSTALL=false
+
 tolog() {
 	local _LOG_ENTRY="$1"
-	if [ $LOG_FILE_CREATED != true]
+	if [ $LOG_FILE_CREATED != true ]
 	then
 		if [ -z ${LOG_BUFFER+x} ] ; then declare -g LOG_BUFFER="" ; fi
-		echo $_LOG_ENTRY >> $LOG_BUFFER
+		LOG_BUFFER+="\n$_LOG_ENTRY"
 	else
-		if [ -z ${LOG_BUFFER+x} ] ; then declare -g LOG_BUFFER="" ; fi
-		if var_exists $_LOG_BUFFER
+		if [ -n "$LOG_BUFFER" ]
 		then
-			echo $_LOG_BUFFER >> "$LOG_FILE"
+			echo -e "$_LOG_BUFFER" >> "$LOG_FILE"
 			unset $_LOG_BUFFER
-			echo $_LOG_ENTRY >> "$LOG_FILE"
+			echo "$_LOG_ENTRY" >> "$LOG_FILE"
+		else
+			echo "$_LOG_ENTRY" >> "$LOG_FILE"
 		fi
 	fi
 }
+
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
 if [[ $EUID -ne 0 ]]; then echo "This script must be run as root" ; exit 1 ; fi
-echo "$START_TIME ## Starting Watchdog Process #######################"
-### DECLARING FUNCTIONS ########################################################
+echo "$START_TIME # START:    Starting Watchdog Process ######################################"
+### DECLARING FUNCTIONS #######################################################
 
-### INIT #############################
+### INIT ###
 init() {
 	dbg_line "INIT start"
 	################### PROGRAM INFO ##############################################
 	declare -gr PROGRAM_SUITE="Pegasus' Linux Administration Tools"
 	declare -gr SCRIPT="${0##*/}"
-	declare -gr SCRIPT_DIR="${0%/*}"
+	declare -gr SCRIPT_DIR="$(pwd -P)"
 	declare -gr SCRIPT_TITLE="Internet Watchdog"
 	declare -gr MAINTAINER="Mattijs Snepvangers"
 	declare -gr MAINTAINER_EMAIL="pegasus.ict@gmail.com"
@@ -44,7 +48,7 @@ init() {
 	declare -gr VERSION_MAJOR=1
 	declare -gr VERSION_MINOR=0
 	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="RC"
+	declare -gr VERSION_STATE="RC-3"
 	declare -gr VERSION_BUILD=20180503
 	declare -gr LICENSE="MIT"
 	###############################################################################
@@ -65,12 +69,12 @@ get_screen_size() { ### gets terminal size and sets global vars
 	declare -g SCREEN_WIDTH=$(tput cols) #${ $COLUMNS:-80 }
 	dbg_line "Found $SCREEN_HEIGHT lines and $SCREEN_WIDTH columns."
 }
-#####
 create_constants() { ### defines constants
 	dbg_line "creating constants"
 	declare -gr LOG_EXT=".log"
 	declare -gr LOG_DIR="/var/log/plat/"
 	declare -gr LOG_FILE="$LOG_DIR$SCRIPT_$START_TIME$LOG_EXT"
+	declare -gr LOG_WIDTH=100
 	dbg_line "constants created"
 }
 get_args() { ### parses commandline arguments
@@ -81,21 +85,22 @@ get_args() { ### parses commandline arguments
 		err_line "I’m sorry, \"getopt --test\" failed in this environment."
 		exit 1
 	fi
-	OPTIONS="hv:s:i"
-	LONG_OPTIONS="help,verbosity:,server:,install"
+	OPTIONS="ihv:s:"
+	LONG_OPTIONS="install,help,verbosity:,server:"
 	PARSED=$(getopt -o $OPTIONS --long $LONG_OPTIONS -n "$0" -- "$@")
+	dbg_line "Parsed args: $PARSED"
 	if [ $? -ne 0 ]
 		then usage
 	fi
 	eval set -- "$PARSED"
 	while true; do
 		case "$1" in
-			-i|--install		)	dbg_line "installation requested"	;	insert_into_initd			;	shift	;;
-			-h|--help			)	dbg_line "help asked"				;	usage						;	shift	;;
-			-v|--verbosity		)	dbg_line "set verbosity to $2"		;	set_verbosity $2			;	shift 2	;;
-			-s|--server			)	dbg_line "set testserver to $2"		;	declare -gr TEST_SERVER=$2	;	shift 2	;;
-			--					)	shift; break ;;
-			*					)	break ;;
+			-i|--install	)	dbg_line "installation requested"	;	declare -gr DO_INSTALL=true	;	shift	;;
+			-h|--help		)	dbg_line "help asked"				;	usage						;	shift	;;
+			-v|--verbosity	)	dbg_line "set verbosity to $2"		;	set_verbosity $2			;	shift 2	;;
+			-s|--server		)	dbg_line "set testserver to $2"		;	declare -gr TEST_SERVER=$2	;	shift 2	;;
+			--				)	shift; break ;;
+			*				)	break ;;
 		esac
 	done
 	dbg_line "done parsing args"
@@ -103,16 +108,16 @@ get_args() { ### parses commandline arguments
 set_verbosity() { ### Set verbosity level
 	dbg_line "setting verbosity to $1"
 	case $1 in
-		1	)	declare -gr VERBOSITY=1; info_line "Verbosity is set to 1";;	### Be vewy, vewy quiet... Will only show Critical errors which result in an untimely exiting of the script
-		2	)	declare -gr VERBOSITY=2; info_line "Verbosity is set to 2";;	# Will show errors that don't endanger the basic functioning of the program
-		3	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to 3";;	# Will show warnings
-		4	)	declare -gr VERBOSITY=4; info_line "Verbosity is set to 4";;	# Let me know what youre doing, every step of the way
-		5	)	declare -gr VERBOSITY=5; info_line "Verbosity is set to 5";;	# I want it all, your thoughts and dreams too!!!
-
-		*	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to default 3";;	## DEFAULT
+		1	)	declare -gr VERBOSITY=1; info_line "Verbosity is set to CRITICAL"	;	shift	;;	### Be vewy, vewy quiet... Will only show Critical errors which result in an untimely exiting of the script
+		2	)	declare -gr VERBOSITY=2; info_line "Verbosity is set to ERROR"		;	shift	;;	# Will show errors that don't endanger the basic functioning of the program
+		3	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to WARNING"	;	shift	;;	# Will show warnings
+		4	)	declare -gr VERBOSITY=4; info_line "Verbosity is set to INFO"		;	shift	;;	# Let me know what youre doing, every step of the way
+		5	)	declare -gr VERBOSITY=5; info_line "Verbosity is set to DEBUG"		;	shift	;;	# I want it all, your thoughts and dreams too!!!
+		*	)	declare -gr VERBOSITY=3; info_line "Verbosity is default: WARNING"	;	shift	;	break	;;	## DEFAULT
 	esac
 }
-### User Interface & LOGGING ###################################################
+
+### User Interface ###
 usage() { ### returns usage information
 	version
 	cat <<-EOT
@@ -122,6 +127,7 @@ usage() { ### returns usage information
 
 		OPTIONS
 
+		   -i or --install		tells the script to install/update itself into init.d
 		   -v or --verbosity	defines the amount of chatter. 0=CRITICAL, 1=WARNING, 2=INFO, 3=VERBOSE, 4=DEBUG. default=2
 		   -s or --server		defines which server, instead of the default server is to be used to test our DNS
 		   -h or --help			prints this message
@@ -129,14 +135,15 @@ usage() { ### returns usage information
 		  The options can be used in any order
 
 		  WARNING!!! There is no error checking on the URI you give to check against!!!
-		  If you want to screw up your server, that's on your shoulders!
+		  If you want to screw up your server, that's on you!
 		EOT
 	exit 3
 }
 version() { ### returns version information
 	echo -e "\n$PROGRAM $VERSION - $COPYRIGHT $MAINTAINER"
 }
-###
+
+### LOGGING ###
 crit_line() { ### CRITICAL MESSAGES
 	local _MESSAGE="$1"
 	log_line 1 "$_MESSAGE"
@@ -160,7 +167,6 @@ dbg_line() { ### DEBUG MESSAGES
 		log_line 5 "$_MESSAGE"
 	fi
 }
-###
 log_line() {	# creates a nice logline and decides what to print on screen and
 				#+ what to send to logfile based on VERBOSITY and IMPORTANCE levels
 				# messages up to level 4 are sent to log
@@ -168,42 +174,55 @@ log_line() {	# creates a nice logline and decides what to print on screen and
 				# usage: log_line <importance> <message>
 	_log_line_length() {
 		local _LINE=""
-		_LINE="$_LOG_LINE$_MESSAGE $_LOG_LINE_FILLER"
+		_LINE="$_LOG_HEADER$_MESSAGE"
 		echo ${#_LINE}
 	}
 	local _IMPORTANCE=$1
-	local _MESSAGE=$2
 	local _LABEL=""
-	local _LOG_LINE=""
-	local _SCREEN_LINE=""
+	local _LOG_HEADER=""
+	local _MESSAGE="$2"
 	local _LOG_LINE_FILLER=""
+	local _SCREEN_LINE_FILLER=""
+	local _SCREEN_LINE=""
+	local _SCREEN_OUTPUT=""
+	local _LOG_OUTPUT=""
 	case $_IMPORTANCE in
-		1	)	_LABEL="CRITICAL"	;;
-		2	)	_LABEL="ERROR"		;;
-		3	)	_LABEL="WARNING"	;;
-		4	)	_LABEL="INFO"		;;
-		5	)	_LABEL="DEBUG"		;;
+		1	)	_LABEL="CRITICAL:"	;;
+		2	)	_LABEL="ERROR:   "	;;
+		3	)	_LABEL="WARNING: "	;;
+		4	)	_LABEL="INFO:    "	;;
+		5	)	_LABEL="DEBUG:   "	;;
 	esac
-	_LOG_LINE="$(get_timestamp) # $_LABEL: "
-	local IMAX=$SCREEN_WIDTH-$(_log_line_length)
+	_LOG_HEADER="$(get_timestamp) # $_LABEL"
+	### generating screen output
+	if (( "$_IMPORTANCE" <= "$VERBOSITY" ))
+	then
+		local IMAX=$SCREEN_WIDTH-$(_log_line_length)
+		for (( i=2 ; i<IMAX ; i++ ))
+		do
+			_SCREEN_LINE_FILLER+="#"
+		done
+		_SCREEN_LINE="$_MESSAGE $_SCREEN_LINE_FILLER"
+		case $_IMPORTANCE in
+			1	)	_SCREEN_OUTPUT=$(crit_colors "$_LOG_HEADER" "$_SCREEN_LINE")	;;
+			2	)	_SCREEN_OUTPUT=$(err_colors "$_LOG_HEADER" "$_SCREEN_LINE")		;;
+			3	)	_SCREEN_OUTPUT=$(warn_colors "$_LOG_HEADER" "$_SCREEN_LINE")	;;
+			4	)	_SCREEN_OUTPUT=$(info_colors "$_LOG_HEADER" "$_SCREEN_LINE")	;;
+			5	)	_SCREEN_OUTPUT=$(dbg_colors "$_LOG_HEADER" "$_SCREEN_LINE")		;;
+		esac
+		echo -e "$_SCREEN_OUTPUT"
+	fi
+	### generating log output
+	local IMAX=$LOG_WIDTH-$(_log_line_length)
 	for (( i=1 ; i<IMAX ; i++ ))
 	do
 		_LOG_LINE_FILLER+="#"
 	done
-	_MESSAGE+=" $_LOG_LINE_FILLER"
-	if (( "$_IMPORTANCE" <= "$VERBOSITY" ))
-	then
-		case $_IMPORTANCE in
-			1	)	crit_colors "$_LOG_LINE" "$_MESSAGE"	;;
-			2	)	err_colors "$_LOG_LINE" "$_MESSAGE"		;;
-			3	)	warn_colors "$_LOG_LINE" "$_MESSAGE"	;;
-			4	)	info_colors "$_LOG_LINE" "$_MESSAGE"	;;
-			5	)	dbg_colors "$_LOG_LINE" "$_MESSAGE"		;;
-		esac
-	fi
-	_LOG_LINE+=$_MESSAGE
-	echo "$_LOG_LINE" >> tolog
+	_LOG_OUTPUT="$_LOG_HEADER $_MESSAGE $_LOG_LINE_FILLER"
+	tolog "$_LOG_OUTPUT"
 }
+
+### TERMINAL OUTPUT ###
 define_colors() {
 	# Reset
 	Color_Off='\033[0m'			# Text Reset
@@ -277,30 +296,41 @@ define_colors() {
 	On_IPurple='\033[0;105m'	# Purple
 	On_ICyan='\033[0;106m'		# Cyan
 	On_IWhite='\033[0;107m'		# White
+
+	# Other effects
+	Bold='\033[1m'
+	Dim='\033[2m'
+	Italic='\033[3m'
+	Underline='\033[4m'
+	Blink='\033[5m'
+	
+	Invert='\033[7m'
+	Hidden='\033[8m'
+	Strikethrough='\033[9m'
 }
 crit_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
 	local _OUTPUT="$BIYellow$On_IRed$_LABEL$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
-	echo -e "$_OUPUT"
+	echo -e "$_OUTPUT"
 }
 err_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
 	local _OUTPUT="$BRed$On_Black$_LABEL$Color_Off $Red$On_Black$_MESSAGE$Color_Off"
-	echo -e "$_OUPUT"
+	echo -e "$_OUTPUT"
 }
 warn_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
 	local _OUTPUT="$Red$On_White$_LABEL$Color_Off $Red$On_White$_MESSAGE$Color_Off"
-	echo -e "$_OUPUT"
+	echo -e "$_OUTPUT"
 }
 info_colors() {
 	local _LABEL="$1"
 	local _MESSAGE="$2"
 	local _OUTPUT="$Black$On_White$_LABEL$Color_Off $Black$On_White$_MESSAGE$Color_Off"
-	echo -e "$_OUPUT"
+	echo -e "$_OUTPUT"
 }
 dbg_colors() {
 	local _LABEL="$1"
@@ -308,6 +338,8 @@ dbg_colors() {
 	local _OUTPUT="$Black$On_White$_LABEL$Color_Off $Black$On_Green$_MESSAGE$Color_Off"
 	echo -e "$_OUTPUT"
 }
+
+### FILE(SYSTEM) OPS ###
 create_logfile() {
     create_file $LOG_FILE
     declare -gr LOG_FILE_CREATED=true
@@ -319,7 +351,8 @@ create_file() { ### Creates file if it doesn't exist
 		touch "$_TARGET_FILE"
 	fi
 }
-### (Inter)Net(work) ###########################################################
+
+### (Inter)Net(work) ###
 cycle_network() {
 	dbg_line "cycle_network: resetting network"
 	ifdown --exclude=lo -a && ifup --exclude=lo -a 
@@ -352,39 +385,54 @@ watch_dog() {
 			err_line "watch_dog: DNS Down, resetting network"
 			cycle_network
 		else
-			dbg_line "watch_dog: DNS works fine"
+			info_line "watch_dog: DNS works fine"
 		fi
-		dbg_line "watch_dog: sleeping for 1 minute"
+		dbg_line "watch_dog: Back in 1 minute"
 		sleep 60
 	done
 }
-### DATE/TIME ##################################################################
+
+### DATE/TIME #################################################################
 get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 	echo $(date +"%Y-%m-%d_%H.%M.%S.%3N")
 }
 
+### INSTALLATION ##############################################################
 insert_into_initd() {
 	#copy to /etc/init.d/
+	dbg_line "SCRIPT_DIR: $SCRIPT_DIR"
+	dbg_line "SCRIPT: $SCRIPT"
 	local _SRC_FILE="$SCRIPT_DIR/$SCRIPT"
+	dbg_line "Source File: $_SRC_FILE"
 	local _TARGET="/etc/init.d/$SCRIPT"
+	dbg_line "Target: $_TARGET"
+	dbg_line "Copying $_SRC_FILE to $_TARGET"
 	cp "$_SRC_FILE" "$_TARGET"
 	# set rights and ownership
+	dbg_line "Setting rights and ownership for $_TARGET"
 	chmod a+x "$_TARGET"
 	chown root "$_TARGET"
-	update-rc.d "$SCRIPT"
+	dbg_line "Running update-rc.d"
+	update-rc.d "$SCRIPT" defaults
+	info_line "Installation of $SCRIPT_TITLE complete"
 }
-### start preperations ###
+
+### END OF FUNCTION DEFINITIONS ###############################################
+
+##### MAIN #####
 define_colors
 get_screen_size
-
 init
-get_args  "$@"
-### verified up to here --------------------------------------------------
-if [ -z ${TEST_SERVER+x} ]
+get_args "$@"
+if [ "$DO_INSTALL" == true ]
 then
-	declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
-	info_line "test server is set to default"
+	info_line "starting the installation of $SCRIPT_TITLE"
+	insert_into_initd
+else
+	if [ -z ${TEST_SERVER+x} ]
+	then
+		declare -gr TEST_SERVER="$DEFAULT_TEST_SERVER"
+		info_line "test server is set to default"
+	fi
+	watch_dog $TEST_SERVER
 fi
-### end of preperations ###
-
-watch_dog $TEST_SERVER
