@@ -9,28 +9,25 @@ declare -g VERBOSITY=3
 declare -g LOG_FILE_CREATED=false
 declare -g DO_INSTALL=false
 
-tolog() {
-	local _LOG_ENTRY="$1"
-	if [ $LOG_FILE_CREATED != true ]
-	then
-		if [ -z ${LOG_BUFFER+x} ] ; then declare -g LOG_BUFFER="" ; fi
-		LOG_BUFFER+="\n$_LOG_ENTRY"
-	else
-		if [ -n "$LOG_BUFFER" ]
-		then
-			echo -e "$_LOG_BUFFER" >> "$LOG_FILE"
-			unset $_LOG_BUFFER
-			echo "$_LOG_ENTRY" >> "$LOG_FILE"
-		else
-			echo "$_LOG_ENTRY" >> "$LOG_FILE"
-		fi
-	fi
-}
-
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
 if [[ $EUID -ne 0 ]]; then echo "This script must be run as root" ; exit 1 ; fi
+declare -gr _LIB_INDEX="default.inc.bash"
+declare -gr _LOCAL_LIB="$PWDlib/"
+declare -gr _SYSTEM_LIB="/var/lib/plat/"
+if [[ -f "$_LOCAL_DIR$_LIB_INDEX" ]]
+then
+	source "$_LOCAL_DIR$_LIB_INDEX"
+elif [[ -f "$_SYSTEM_LIB$_LIB_INDEX" ]]
+then
+	source "$_SYSTEM_LIB$_LIB_INDEX"
+else
+	crit_line "File $_LIB_INDEX not found!"
+	exit 1
+fi
+
+
 echo "$START_TIME # START:    Starting Watchdog Process ######################################"
 ### DECLARING FUNCTIONS #######################################################
 
@@ -128,8 +125,8 @@ usage() { ### returns usage information
 		OPTIONS
 
 		   -i or --install		tells the script to install/update itself into init.d
-		   -v or --verbosity	defines the amount of chatter. 0=CRITICAL, 1=WARNING, 2=INFO, 3=VERBOSE, 4=DEBUG. default=2
-		   -s or --server		defines which server, instead of the default server is to be used to test our DNS
+		   -v or --verbosity	defines the amount of chatter. 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG. default=4
+		   -s or --server		defines which server, instead of the default server, is to be used to test our DNS
 		   -h or --help			prints this message
 
 		  The options can be used in any order
@@ -139,6 +136,7 @@ usage() { ### returns usage information
 		EOT
 	exit 3
 }
+
 version() { ### returns version information
 	echo -e "\n$PROGRAM $VERSION - $COPYRIGHT $MAINTAINER"
 }
@@ -161,11 +159,8 @@ info_line() { ### VERBOSE MESSAGES
 	log_line 4 "$_MESSAGE"
 }
 dbg_line() { ### DEBUG MESSAGES
-	if [[ "$VERBOSITY" -ge 5 ]]
-	then
-		local _MESSAGE="$1"
-		log_line 5 "$_MESSAGE"
-	fi
+	local _MESSAGE="$1"
+	log_line 5 "$_MESSAGE"
 }
 log_line() {	# creates a nice logline and decides what to print on screen and
 				#+ what to send to logfile based on VERBOSITY and IMPORTANCE levels
