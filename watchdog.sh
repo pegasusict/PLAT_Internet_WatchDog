@@ -12,17 +12,17 @@ declare -g LOG_FILE_CREATED=false
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
 if [[ $EUID -ne 0 ]]; then echo "This script must be run as root" ; exit 1 ; fi
-declare -gr _LIB_INDEX="default.inc.bash"
-declare -gr _LOCAL_LIB="../PBFL/"
-declare -gr _SYSTEM_LIB="/var/lib/plat/"
-if [[ -f "$_LOCAL_DIR$_LIB_INDEX" ]]
+declare -gr LIB_INDEX="default.inc.bash"
+declare -gr LOCAL_LIB="../PBFL/"
+declare -gr SYS_LIB_DIR="/var/lib/plat/"
+if [[ -f "$LOCAL_LIB$LIB_INDEX" ]]
 then
-	source "$_LOCAL_DIR$_LIB_INDEX"
-elif [[ -f "$_SYSTEM_LIB$_LIB_INDEX" ]]
+	source "$LOCAL_LIB$LIB_INDEX"
+elif [[ -f "$SYS_LIB_DIR$LIB_INDEX" ]]
 then
-	source "$_SYSTEM_LIB$_LIB_INDEX"
+	source "$SYS_LIB_DIR$LIB_INDEX"
 else
-	crit_line "File $_LIB_INDEX not found!"
+	crit_line "File $LIB_INDEX not found!"
 	exit 1
 fi
 
@@ -112,7 +112,6 @@ usage() { ### returns usage information
 ### END OF FUNCTION DEFINITIONS ###############################################
 
 ##### MAIN #####
-define_colors
 get_screen_size
 init
 get_args "$@"
