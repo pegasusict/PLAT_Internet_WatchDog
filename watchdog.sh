@@ -6,15 +6,14 @@
 ############################################################################
 START_TIME=$(date +"%Y-%m-%d_%H.%M.%S.%3N")
 declare -g VERBOSITY=3
-declare -g LOG_FILE_CREATED=false
 declare -g DO_INSTALL=false
-
+declare -g LOG_FILE_CREATED=false
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
 if [[ $EUID -ne 0 ]]; then echo "This script must be run as root" ; exit 1 ; fi
 declare -gr _LIB_INDEX="default.inc.bash"
-declare -gr _LOCAL_LIB="$PWDlib/"
+declare -gr _LOCAL_LIB="../PBFL/"
 declare -gr _SYSTEM_LIB="/var/lib/plat/"
 if [[ -f "$_LOCAL_DIR$_LIB_INDEX" ]]
 then
@@ -26,7 +25,6 @@ else
 	crit_line "File $_LIB_INDEX not found!"
 	exit 1
 fi
-
 
 echo "$START_TIME # START:    Starting Watchdog Process ######################################"
 ### DECLARING FUNCTIONS #######################################################
@@ -45,7 +43,7 @@ init() {
 	declare -gr VERSION_MAJOR=1
 	declare -gr VERSION_MINOR=0
 	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="RC-4"
+	declare -gr VERSION_STATE="RC-5"
 	declare -gr VERSION_BUILD=20180507
 	declare -gr LICENSE="MIT"
 	###############################################################################
@@ -89,7 +87,6 @@ get_args() { ### parses commandline arguments
 	dbg_line "done parsing args"
 }
 
-### User Interface ###
 usage() { ### returns usage information
 	version
 	cat <<-EOT
