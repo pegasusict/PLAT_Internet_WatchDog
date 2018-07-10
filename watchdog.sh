@@ -1,12 +1,21 @@
 #!/bin/bash
-############################################################################
-# Pegasus' Linux Administration Tools #					 Internet Watchdog #
-# (C)2017-2018 Mattijs Snepvangers	  #				 pegasus.ict@gmail.com #
-# License: GPL v3					  # Please keep my name in the credits #
-############################################################################
+set -o xtrace	# Trace the execution of the script
 START_TIME=$(date +"%Y-%m-%d_%H.%M.%S.%3N")
+#set -o errexit	# Exit on most errors (see the manual)
+set -o errtrace	# Make sure any error trap is inherited
+set -o pipefail	# Use last non-zero exit code in a pipeline
+#set -o nounset	# Disallow expansion of unset variables
+################################################################################
+# Pegasus' Linux Administration Tools	#					 Internet Watchdog #
+# (C)2017-2018 Mattijs Snepvangers		#				 pegasus.ict@gmail.com #
+# License: GPL v3						#	Please keep my name in the credits #
+################################################################################
+declare -g SCREEN_SIZE_KNOWN=false
+declare -g SCREEN_WIDTH=80
 declare -g VERBOSITY=5
-
+declare -gr LOG_EXT=".log"
+declare -gr LOG_DIR="/var/log/plat/"
+declare -gr LOG_FILE="$LOG_DIR$SCRIPT_$START_TIME$LOG_EXT"
 # Making sure this script is run by bash to prevent mishaps
 if [ "$(ps -p "$$" -o comm=)" != "bash" ]; then bash "$0" "$@" ; exit "$?" ; fi
 # Make sure only root can run this script
@@ -17,7 +26,7 @@ echo "$START_TIME ## Starting Watchdog Process #######################"
 ### INIT #############################
 init() {
 	dbg_line "INIT start"
-	################### PROGRAM INFO ##############################################
+	################### PROGRAM INFO ###########################################
 	declare -gr PROGRAM_SUITE="Pegasus' Linux Administration Tools"
 	declare -gr SCRIPT="${0##*/}"
 	declare -gr SCRIPT_DIR="${0%/*}"
@@ -25,16 +34,16 @@ init() {
 	declare -gr MAINTAINER="Mattijs Snepvangers"
 	declare -gr MAINTAINER_EMAIL="pegasus.ict@gmail.com"
 	declare -gr COPYRIGHT="(c)2017-$(date +"%Y")"
-	declare -gr VERSION_MAJOR=0
-	declare -gr VERSION_MINOR=1
-	declare -gr VERSION_PATCH=0
-	declare -gr VERSION_STATE="ALPHA"
-	declare -gr VERSION_BUILD=20180502
+	declare -gr VER_MAJOR=0
+	declare -gr VER_MINOR=1
+	declare -gr VER_PATCH=12
+	declare -gr VER_STATE="ALPHA"
+	declare -gr BUILD=20180710
 	declare -gr LICENSE="MIT"
-	###############################################################################
+	############################################################################
 	declare -gr PROGRAM="$PROGRAM_SUITE - $SCRIPT_TITLE"
-	declare -gr SHORT_VERSION="$VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH-$VERSION_STATE"
-	declare -gr VERSION="Ver$SHORT_VERSION build $VERSION_BUILD"
+	declare -gr SHORT_VER="$VER_MAJOR.$VER_MINOR.$VER_PATCH-$VER_STATE"
+	declare -gr VER="Ver$SHORT_VER build $BUILD"
 	declare -gr DEFAULT_TEST_SERVER="www.google.com"
 
 	### initializing terminal colors
@@ -42,18 +51,20 @@ init() {
 }
 get_screen_size() { ### gets terminal size and sets global vars
 					#+  SCREEN_HEIGHT and SCREEN_WIDTH
-	dbg_line "getting screen size"
-	declare -g SCREEN_HEIGHT=$(tput lines) #${ $LINES:-25 }
-	declare -g SCREEN_WIDTH=$(tput cols) #${ $COLUMNS:-80 }
-	dbg_line "Found $SCREEN_HEIGHT lines and $SCREEN_WIDTH columns."
+	if [ SCREEN_SIZE_KNOWN != true ]
+	then
+		echo "getting screen size"
+		declare -g SCREEN_HEIGHT=$(tput lines) #${ $LINES:-25 }
+		declare -g SCREEN_WIDTH=$(tput cols) #${ $COLUMNS:-80 }
+		echo "Found $SCREEN_HEIGHT lines and $SCREEN_WIDTH columns."
+		declare -gr SCREEN_SIZE_KNOWN=true
+	else
+		get_screen_size() { : ; }
+	fi
 }
 #####
 create_constants() { ### defines constants
-	dbg_line "creating constants"
-	declare -gr LOG_EXT=".log"
-	declare -gr LOG_DIR="/var/log/plat/"
-	declare -gr LOG_FILE="$LOG_DIR$SCRIPT_$START_TIME$LOG_EXT"
-	dbg_line "constants created"
+	:
 }
 get_args() { ### parses commandline arguments
 	dbg_line "parsing args"
@@ -89,7 +100,6 @@ set_verbosity() { ### Set verbosity level
 		3	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to 3";;	# Will show warnings
 		4	)	declare -gr VERBOSITY=4; info_line "Verbosity is set to 4";;	# Let me know what youre doing, every step of the way
 		5	)	declare -gr VERBOSITY=5; info_line "Verbosity is set to 5";;	# I want it all, your thoughts and dreams too!!!
-
 		*	)	declare -gr VERBOSITY=3; info_line "Verbosity is set to default 3";;	## DEFAULT
 	esac
 }
@@ -115,12 +125,13 @@ usage() { ### returns usage information
 	exit 3
 }
 version() { ### returns version information
-	echo -e "\n$PROGRAM $VERSION - $COPYRIGHT $MAINTAINER"
+	echo -e "\n$PROGRAM $VER - $COPYRIGHT $MAINTAINER"
 }
 ###
 crit_line() { ### CRITICAL MESSAGES
 	local _MESSAGE="$1"
 	log_line 1 "$_MESSAGE"
+	exit 1
 }
 err_line() { ### ERROR MESSAGES
 	local _MESSAGE="$1"
@@ -139,9 +150,21 @@ dbg_line() { ### DEBUG MESSAGES
 	then
 		local _MESSAGE="$1"
 		log_line 5 "$_MESSAGE"
+	else # If debugging is off disable function; saves on cycles
+		dbg_line() { :; }
 	fi
 }
 ###
+create_file() { ### Creates file if it doesn't exist
+	local _FILE="$1"
+	if [ ! -f "$_FILE" ]
+	then
+		touch "$_FILE"
+		dbg_line "create_file: $_FILE created."
+	else
+		dbg_line "create_file: $_FILE already exists, leaving it alone."
+	fi
+}
 log_line() {	# creates a nice logline and decides what to print on screen and
 				#+ what to send to logfile based on VERBOSITY and IMPORTANCE levels
 				# messages up to level 4 are sent to log
@@ -183,6 +206,7 @@ log_line() {	# creates a nice logline and decides what to print on screen and
 		esac
 	fi
 	_LOG_LINE+=$_MESSAGE
+	create_file "$LOG_FILE"
 	echo "$_LOG_LINE" > "$LOG_FILE"
 }
 define_colors() {
@@ -297,10 +321,10 @@ create_file() { ### Creates file if it doesn't exist
 		touch "$_TARGET_FILE"
 	fi
 }
-### (Inter)Net(work) ###########################################################
+### (Inter)Net(work) ##################################################################################
 cycle_network() {
 	dbg_line "resetting network"
-	ifdown --exclude=lo -a && ifup --exclude=lo -a 
+	ifdown --exclude=lo -a && ifup --exclude=lo -a
 }
 test_DNS() {
 	dbg_line "test_DNS: testing DNS"
@@ -336,20 +360,21 @@ watch_dog() {
 		sleep 60
 	done
 }
-### DATE/TIME ##################################################################
+### DATE/TIME #########################################################################################
 get_timestamp() { ### returns something like 2018-03-23_13.37.59.123
 	echo $(date +"%Y-%m-%d_%H.%M.%S.%3N")
 }
 
 ### start preperations ###
+create_file "$LOG_FILE"
 define_colors
 get_screen_size
 
 init
-create_constants
-create_file "$LOG_FILE"
+#create_constants
 
-get_args  "$@"
+
+get_args "$@"
 ### verified up to here --------------------------------------------------
 if [ -z ${TEST_SERVER+x} ]
 then
